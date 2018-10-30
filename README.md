@@ -98,7 +98,8 @@ Statix can be configured globally with:
 config :statix,
   prefix: "sample",
   host: "stats.tld",
-  port: 8181
+  port: 8181,
+  telegraf: true
 ```
 
 and on a per connection basis as well:
@@ -113,6 +114,7 @@ The defaults are:
 * prefix: `nil`
 * host: `"127.0.0.1"`
 * port: `8125`
+* telegraf: `false` (Use Telegraf's StatsD line protocol, which is slightly different than the rest)
 
 __Note:__ by default, configuration is evaluated once, at compile time.
 If you plan using other configuration at runtime, you must specify the `:runtime_config` option:
