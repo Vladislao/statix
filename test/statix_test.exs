@@ -32,9 +32,12 @@ defmodule StatixTest do
   end
 
   runtime_config? = System.get_env("STATIX_TEST_RUNTIME_CONFIG") in ["1", "true"]
-  content = quote do
-    use Statix, runtime_config: unquote(runtime_config?)
-  end
+
+  content =
+    quote do
+      use Statix, runtime_config: unquote(runtime_config?)
+    end
+
   Module.create(TestStatix, content, Macro.Env.location(__ENV__))
 
   defmodule OverridingStatix do
@@ -76,8 +79,8 @@ defmodule StatixTest do
 
   setup do
     :ok = Server.set_current_test(self())
-    TestStatix.connect
-    OverridingStatix.connect
+    TestStatix.connect()
+    OverridingStatix.connect()
     on_exit(fn -> Server.set_current_test(nil) end)
   end
 
@@ -130,11 +133,20 @@ defmodule StatixTest do
     TestStatix.gauge("sample", 2.1)
     assert_receive {:server, "sample:2.1|g"}
 
+    TestStatix.gauge("sample", 2.1, telegraf: true)
+    assert_receive {:server, "sample:2.1|g"}
+
     TestStatix.gauge("sample", 3, tags: ["foo:bar", "baz"])
     assert_receive {:server, "sample:3|g|#foo:bar,baz"}
 
+    TestStatix.gauge("sample", 3, tags: ["foo:bar", "baz"], telegraf: true)
+    assert_receive {:server, "sample,foo:bar,baz:3|g"}
+
     TestStatix.gauge("sample", 3, sample_rate: 1.0, tags: ["foo", "bar"])
     assert_receive {:server, "sample:3|g|@1.0|#foo,bar"}
+
+    TestStatix.gauge("sample", 3, sample_rate: 1.0, tags: ["foo", "bar"], telegraf: true)
+    assert_receive {:server, "sample,foo,bar:3|g|@1.0"}
 
     TestStatix.gauge("sample", 3, sample_rate: 0.0)
 
@@ -179,16 +191,20 @@ defmodule StatixTest do
 
   test "measure/2,3" do
     expected = "the stuff"
-    result = TestStatix.measure(["sample"], fn ->
-      :timer.sleep(100)
-      expected
-    end)
+
+    result =
+      TestStatix.measure(["sample"], fn ->
+        :timer.sleep(100)
+        expected
+      end)
+
     assert_receive {:server, <<"sample:10", _, "|ms">>}
     assert result == expected
 
     TestStatix.measure("sample", [sample_rate: 1.0, tags: ["foo", "bar"]], fn ->
       :timer.sleep(100)
     end)
+
     assert_receive {:server, <<"sample:10", _, "|ms|@1.0|#foo,bar">>}
 
     refute_received _any
@@ -231,6 +247,7 @@ defmodule StatixTest do
     OverridingStatix.measure("sample", [tags: ["foo"]], fn ->
       :timer.sleep(100)
     end)
+
     assert_receive {:server, <<"sample-measure-overridden:10", _, "|ms|#foo">>}
 
     OverridingStatix.set("sample", 3, tags: ["foo"])
